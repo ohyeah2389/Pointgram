@@ -65,6 +65,18 @@ ERROR_COLOR_STOPS = [
     (10.0, QColor(Qt.GlobalColor.magenta)),
 ]
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        # For one-folder builds, this is the folder containing the executable
+        base_path = sys._MEIPASS
+    except Exception:
+        # Not running bundled, use the script's directory
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_path, relative_path)
+
 
 def interpolate_color(magnitude: float, stops: List[Tuple[float, QColor]]) -> QColor:
     """Linearly interpolates color based on magnitude between defined stops."""
@@ -178,32 +190,33 @@ class MainWindow(QMainWindow):
 
     def _setup_toolbar(self, toolbar: QToolBar):
         """Adds actions to the toolbar.
-        Tries local './icons/...' first, then falls back to system theme.
+        Tries local icons first, then falls back to system theme.
         """
 
-        def get_icon(local_path: str, theme_name: str) -> QIcon:
+        def get_icon(icon_filename: str, theme_name: str) -> QIcon:
             """Helper to load local icon first, then theme."""
-            if os.path.exists(local_path):
-                return QIcon(local_path)
+            local_icon_path = resource_path(os.path.join("icons", icon_filename))
+
+            if os.path.exists(local_icon_path):
+                return QIcon(local_icon_path)
             else:
                 return QIcon.fromTheme(theme_name)
 
-        # File Operations
-        open_action = QAction(get_icon("icons/go-down.svg", "go-down"), "", self)
+        open_action = QAction(get_icon("go-down.svg", "go-down"), "", self)
         open_action.setShortcut(QKeySequence.Open)
         open_action.setToolTip("Import Images... (Ctrl+O)")
         open_action.triggered.connect(self.open_images)
         toolbar.addAction(open_action)
 
         open_project_action = QAction(
-            get_icon("icons/document-open.svg", "document-open"), "", self
+            get_icon("document-open.svg", "document-open"), "", self
         )
         open_project_action.setToolTip("Open Project...")
         open_project_action.triggered.connect(self.open_project)
         toolbar.addAction(open_project_action)
 
         save_action = QAction(
-            get_icon("icons/document-save.svg", "document-save"), "", self
+            get_icon("document-save.svg", "document-save"), "", self
         )
         save_action.setShortcut(QKeySequence.Save)
         save_action.setToolTip("Save Project (Ctrl+S)")
@@ -211,7 +224,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(save_action)
 
         save_as_action = QAction(
-            get_icon("icons/document-save-as.svg", "document-save-as"), "", self
+            get_icon("document-save-as.svg", "document-save-as"), "", self
         )
         save_as_action.setShortcut(QKeySequence.SaveAs)
         save_as_action.setToolTip("Save Project As... (Ctrl+Shift+S)")
@@ -222,7 +235,7 @@ class MainWindow(QMainWindow):
 
         # Export Operations
         export_scene_action = QAction(
-            get_icon("icons/document-print.svg", "document-print"), "", self
+            get_icon("document-print.svg", "document-print"), "", self
         )
         export_scene_action.setToolTip("Export Scene As GLTF...")
         export_scene_action.triggered.connect(self.export_scene_as)
@@ -232,7 +245,7 @@ class MainWindow(QMainWindow):
 
         # Tools
         self.add_point_tool_action = QAction(
-            get_icon("icons/list-add.svg", "list-add"), "", self
+            get_icon("list-add.svg", "list-add"), "", self
         )
         self.add_point_tool_action.setCheckable(True)
         self.add_point_tool_action.setChecked(True)
@@ -241,7 +254,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.add_point_tool_action)
 
         self.delete_point_tool_action = QAction(
-            get_icon("icons/edit-cut.svg", "edit-cut"), "", self
+            get_icon("edit-cut.svg", "edit-cut"), "", self
         )
         self.delete_point_tool_action.setCheckable(True)
         self.delete_point_tool_action.setToolTip("Delete Point Tool")
@@ -256,7 +269,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         # Calibration
-        calibrate_action = QAction(get_icon("icons/measure.svg", "measure"), "", self)
+        calibrate_action = QAction(get_icon("measure.svg", "accessories-engineering"), "", self)
         calibrate_action.setToolTip("Run Calibration (SfM + Bundle Adjustment)")
         calibrate_action.triggered.connect(self.run_calibration)
         if not _pycolmap_available:
