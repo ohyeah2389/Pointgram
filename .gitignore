@@ -1,8 +1,18 @@
-__pycache__
-.venv
-car1
-car2
-COLMAP
-colmap_py_work
+# Python
+__pycache__/
+.venv/
+build/
+dist/
+
+# IDE
+.vscode/
+
+# Project specific
+car1/
+car2/
+COLMAP/
+colmap_py_work/
+
+# Generated files
 *.gltf
 *.json
