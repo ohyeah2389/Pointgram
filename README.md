@@ -7,6 +7,5 @@ Currently, the program is capable of all steps from image export to reconstructe
 
 - Point-to-point distance definition for rescaling
 - Three-point plane picking for coordinate system definition
-- Point set renaming
 
 The program has been tested with Python 3.9 and PyCOLMAP 3.11.1. It uses PySide6 v6.9.0 for UI operations, along with the Tango icons included in the repository.
