@@ -13,6 +13,7 @@ from PySide6.QtGui import (
     QWheelEvent,
     QMouseEvent,
     QTransform,
+    QFont,
 )
 from PySide6.QtCore import Qt, Signal, QPointF
 from typing import Union
@@ -28,7 +29,13 @@ PRECISION_ZOOM_THRESHOLD = 0.01
 class CrosshairMarker(QGraphicsPathItem):
     """A graphics item representing a point marker with a crosshair, circle, and text label."""
 
-    def __init__(self, position: QPointF, set_index: int, size: float = MARKER_SIZE):
+    def __init__(
+        self,
+        position: QPointF,
+        set_index: int,
+        set_name: str,
+        size: float = MARKER_SIZE,
+    ):
         super().__init__()
         self.setPos(position)
         self.set_index = set_index
@@ -41,13 +48,14 @@ class CrosshairMarker(QGraphicsPathItem):
         self.setFlag(QGraphicsItem.ItemIgnoresTransformations, False)
 
         # Text Label Child Item
-        self.text_label = QGraphicsSimpleTextItem(str(set_index), self)
+        self.text_label = QGraphicsSimpleTextItem(set_name, self)
         # Keep text size constant regardless of zoom
         self.text_label.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
-        font = self.text_label.font()
+        font = QFont()
         font.setPointSize(8)
         self.text_label.setFont(font)
-        self.text_label.setPos(TEXT_OFFSET, -TEXT_OFFSET)
+        # Adjust position slightly more to account for potentially longer names
+        self.text_label.setPos(TEXT_OFFSET + 2, -TEXT_OFFSET - 2)
 
         # Circle Child Item
         radius = self.size / 2.0
@@ -56,7 +64,7 @@ class CrosshairMarker(QGraphicsPathItem):
         self.circle.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
         self.circle.setBrush(Qt.NoBrush)
 
-        self.set_style()
+        self.set_style()  # Apply initial style
 
     def _update_path(self):
         """Sets the QPainterPath for the crosshair."""
@@ -74,9 +82,14 @@ class CrosshairMarker(QGraphicsPathItem):
         pen.setCosmetic(cosmetic)
         self.setPen(pen)
         self.text_label.setBrush(QBrush(color))
-        circle_pen = QPen(color, width * 0.8)
+        circle_pen = QPen(color, width * 0.8)  # Make circle slightly thinner
         circle_pen.setCosmetic(True)
         self.circle.setPen(circle_pen)
+
+    def set_text(self, text: str):
+        """Updates the text displayed by the marker's label."""
+        self.text_label.setText(text)
+        # Optional: Adjust position based on text width if needed, but keep simple for now
 
     def type(self) -> int:
         """Custom type identifier for easily finding these items."""
@@ -89,11 +102,8 @@ class ZoomableView(QGraphicsView):
     """A QGraphicsView subclass that supports zooming, middle-mouse panning,
     marker interaction (move/delete via tool), and placement."""
 
-    # Signal emitted on MOUSE RELEASE after placing a new point
     scene_mouse_press = Signal(QPointF)
-    # Signal emitted on LEFT-CLICK on a marker when delete tool is active
-    marker_action_click = Signal(QGraphicsItem, QPointF)  # Renamed signal
-    # Signal emitted when a marker drag operation finishes
+    marker_action_click = Signal(QGraphicsItem, QPointF)
     marker_move_finished = Signal(QGraphicsItem, QPointF)
 
     def __init__(self, scene, parent=None):
@@ -158,7 +168,6 @@ class ZoomableView(QGraphicsView):
                 marker_item = item.parentItem()
 
         if marker_item:
-            # Handle Left Click on Marker
             if self._current_tool_mode == "add_move":
                 # Start Marker Drag with temporary precision zoom
                 self._original_transform_before_action = self.transform()
@@ -179,9 +188,7 @@ class ZoomableView(QGraphicsView):
                 return
 
         else:
-            # Handle Left Click on Background
             if self._current_tool_mode == "add_move":
-                # Start Placing New Point with temporary precision zoom
                 self._original_transform_before_action = self.transform()
                 current_scale = self._original_transform_before_action.m11()
                 if (
@@ -194,7 +201,6 @@ class ZoomableView(QGraphicsView):
                 event.accept()
                 return
             elif self._current_tool_mode == "delete":
-                # Do nothing on background click for delete tool
                 event.accept()
                 return
 
@@ -219,7 +225,7 @@ class ZoomableView(QGraphicsView):
             return
 
         if self._is_placing_new_marker and self._current_tool_mode == "add_move":
-            event.accept()  # Consume drag events during placement
+            event.accept()
             return
 
         super().mouseMoveEvent(event)

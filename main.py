@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsLineItem,
     QLabel,
+    QInputDialog,
 )
 from PySide6.QtGui import (
     QPixmap,
@@ -111,6 +112,7 @@ class MainWindow(QMainWindow):
         self.current_image_index: int = -1
         # { set_idx: {img_idx: (QPointF, marker_item), ... }, ... }
         self.point_data: Dict[int, Dict[int, Tuple[QPointF, CrosshairMarker]]] = {}
+        self.point_set_names: Dict[int, str] = {}
         self.active_point_set_index: int = -1
         self._next_point_set_id: int = 0
         self.thumbnails: Dict[str, Optional[QPixmap]] = {}
@@ -172,6 +174,9 @@ class MainWindow(QMainWindow):
         self.point_set_list_widget = QListWidget()
         self.point_set_list_widget.currentItemChanged.connect(
             self.on_point_set_selection_changed
+        )
+        self.point_set_list_widget.itemDoubleClicked.connect(
+            self.on_point_set_double_clicked
         )
         main_splitter.addWidget(self.point_set_list_widget)
 
@@ -612,11 +617,12 @@ class MainWindow(QMainWindow):
 
     def create_marker_item(self, position: QPointF, set_index: int) -> CrosshairMarker:
         """Factory method to create a CrosshairMarker instance."""
-        marker = CrosshairMarker(position, set_index)
+        set_name = self.point_set_names.get(set_index, str(set_index))
+        marker = CrosshairMarker(position, set_index, set_name)
         return marker
 
     def style_marker(self, marker: CrosshairMarker, set_index: int):
-        """Applies styling (color) to a marker based on active state."""
+        """Applies styling (color, label) to a marker based on active state and name."""
         if not isinstance(marker, CrosshairMarker):
             return
 
@@ -628,33 +634,38 @@ class MainWindow(QMainWindow):
         marker.set_style(color=pen_color, width=1.0, cosmetic=True)
         marker.setZValue(1)  # Ensure markers are above image
 
+        # Update marker text based on stored name or index
+        set_name = self.point_set_names.get(set_index, str(set_index))
+        marker.set_text(set_name)
+
         if hasattr(marker, "text_label") and marker.text_label:
-            marker.text_label.setVisible(True)  # Ensure text label is visible
+            marker.text_label.setVisible(True)
 
     def update_point_set_list(self):
         """Refreshes the point set list, showing image indices and reprojection errors."""
-        self.point_set_list_widget.blockSignals(
-            True
-        )  # Prevent signal loops during update
+        self.point_set_list_widget.blockSignals(True)
         self.point_set_list_widget.clear()
 
         sorted_set_ids = sorted(self.point_data.keys())
         row_to_select = -1
-        default_text_color = (
-            self.palette().color(self.point_set_list_widget.foregroundRole()).name()
-        )
+        default_text_color = self.palette().color(self.point_set_list_widget.foregroundRole()).name()
 
         for i, set_id in enumerate(sorted_set_ids):
             point_set_observations = self.point_data[set_id]
+            custom_name = self.point_set_names.get(set_id)
+            display_name = custom_name if custom_name else f"Point Set {set_id}"
+
             # Use HTML for multi-line and color formatting
             html_lines = [
-                f"<font color='{default_text_color}'><b>Point Set {set_id}:</b></font>"
+                # Display format: "ID: Name"
+                f"<font color='{default_text_color}'><b>{set_id}: {display_name}</b></font>"
             ]
 
+            # Add error information lines
             for img_idx in sorted(point_set_observations.keys()):
                 error_info = self.reprojection_errors.get(set_id, {}).get(img_idx)
                 error_str = ""
-                error_color_hex = "gray"  # Default color for no error data
+                error_color_hex = "gray"
 
                 if error_info and "magnitude" in error_info:
                     error_mag = error_info["magnitude"]
@@ -663,27 +674,27 @@ class MainWindow(QMainWindow):
                         error_color_hex = error_color.name()
                         error_str = f"<font color='{error_color_hex}'>({error_mag:.1f}px)</font>"
                     else:
-                        error_str = "<font color='gray'>(Err?)</font>"  # Error calculation failed?
+                        error_str = "<font color='gray'>(Err?)</font>"
                 else:
-                    error_str = (
-                        "<font color='gray'>(---)</font>"  # No error calculated yet
-                    )
+                    error_str = "<font color='gray'>(---)</font>"
 
-                # Line format: Error (color) - Index
                 html_lines.append(
                     f"&nbsp;&nbsp;{error_str} - <font color='{default_text_color}'>{img_idx}</font>"
                 )
 
             full_html = "<br>".join(html_lines)
-            label_widget = QLabel(full_html)  # Use QLabel for rich text rendering
+            label_widget = QLabel(full_html)
             label_widget.setTextFormat(Qt.RichText)
             label_widget.setWordWrap(True)
+            # Ensure background is transparent for selection highlight to show
+            label_widget.setAutoFillBackground(False)
+            label_widget.setStyleSheet("background-color: transparent;")
+
 
             item = QListWidgetItem()
-            item.setData(Qt.UserRole, set_id)  # Store set ID
-            item.setSizeHint(label_widget.sizeHint())  # Help list calculate item height
+            item.setData(Qt.UserRole, set_id)
+            item.setSizeHint(label_widget.sizeHint())
             self.point_set_list_widget.addItem(item)
-            # Set the custom widget for the item
             self.point_set_list_widget.setItemWidget(item, label_widget)
 
             if set_id == self.active_point_set_index:
@@ -692,9 +703,50 @@ class MainWindow(QMainWindow):
         if row_to_select != -1:
             self.point_set_list_widget.setCurrentRow(row_to_select)
         else:
-            self.point_set_list_widget.setCurrentRow(-1)
+            self.point_set_list_widget.setCurrentRow(-1) # Deselect if active set removed
 
         self.point_set_list_widget.blockSignals(False)
+
+    @Slot(QListWidgetItem)
+    def on_point_set_double_clicked(self, item: QListWidgetItem):
+        """Handles double-click on a point set item to initiate renaming."""
+        if not item:
+            return
+
+        set_id = item.data(Qt.UserRole)
+        if set_id is None:
+            return
+
+        current_name = self.point_set_names.get(set_id, "")
+        default_display_name = f"Point Set {set_id}" # Used if current_name is empty
+
+        # Use QInputDialog to get the new name
+        new_name, ok = QInputDialog.getText(
+            self,
+            f"Rename Point Set {set_id}",
+            "Enter new name:",
+            text=current_name if current_name else "", # Show current name in input field
+        )
+
+        if ok:
+            new_name = new_name.strip()
+            if new_name:
+                # Update the name in our dictionary
+                self.point_set_names[set_id] = new_name
+                self.statusBar().showMessage(f"Renamed Point Set {set_id} to '{new_name}'", 3000)
+            else:
+                # If the user entered an empty name, remove the custom name
+                if set_id in self.point_set_names:
+                    del self.point_set_names[set_id]
+                    self.statusBar().showMessage(f"Removed custom name for Point Set {set_id}", 3000)
+                else:
+                    # No change needed if it didn't have a custom name and user entered empty
+                    return
+
+            # Refresh the list to show the new name
+            self.update_point_set_list()
+            # Update markers currently visible
+            self.redraw_markers_and_errors_for_current_image()
 
     @Slot(QListWidgetItem, QListWidgetItem)
     def on_point_set_selection_changed(
@@ -728,7 +780,7 @@ class MainWindow(QMainWindow):
         # Add/Style Markers for current image
         markers_for_current_img = self.get_markers_for_image(self.current_image_index)
         for marker in markers_for_current_img:
-            if marker.scene() != self.scene:  # Add marker if not already in scene
+            if marker.scene() != self.scene:
                 self.scene.addItem(marker)
             set_idx = marker.data(Qt.UserRole)
             if set_idx is not None:
@@ -802,7 +854,7 @@ class MainWindow(QMainWindow):
                 self._update_window_title()
 
     def _write_points_to_file(self, filename: str) -> bool:
-        """Writes the point data and image list to the specified JSON file."""
+        """Writes the point data, names, and image list to the specified JSON file."""
         if not self.point_data and not self.image_paths:
             self.statusBar().showMessage("Nothing to save.", 3000)
             return False
@@ -810,6 +862,7 @@ class MainWindow(QMainWindow):
         data_to_save = {
             "image_paths": self.image_paths,
             "point_data": {},
+            "point_set_names": {}, # Add names dictionary
             "image_dimensions": {},
         }
 
@@ -823,6 +876,11 @@ class MainWindow(QMainWindow):
                     point.x(),
                     point.y(),
                 ]
+
+        # Convert point set name keys to strings
+        for set_id, name in self.point_set_names.items():
+            str_set_id = str(set_id)
+            data_to_save["point_set_names"][str_set_id] = name
 
         # Convert image dimension keys to strings
         for img_idx, dims in self.image_dimensions.items():
@@ -868,7 +926,7 @@ class MainWindow(QMainWindow):
                     self.clear_scene_and_pixmap()
 
     def _load_data_from_file(self, filename: str) -> bool:
-        """Loads project data (images, points) from the specified JSON file."""
+        """Loads project data (images, points, names) from the specified JSON file."""
         try:
             with open(filename, "r") as f:
                 loaded_data = json.load(f)
@@ -988,6 +1046,25 @@ class MainWindow(QMainWindow):
                 print(f"Warning: Invalid set ID '{set_id_str}': {e}. Skipping.")
                 continue
 
+        # Load Point Set Names (optional field in JSON)
+        loaded_names = loaded_data.get("point_set_names")
+        if isinstance(loaded_names, dict):
+            print("Loading point set names from project file...")
+            parsed_count = 0
+            for set_id_str, name in loaded_names.items():
+                try:
+                    set_id = int(set_id_str)
+                    if isinstance(name, str) and name.strip():
+                        self.point_set_names[set_id] = name.strip()
+                        parsed_count += 1
+                    else:
+                        print(f"Warning: Invalid name '{name}' for set ID {set_id}. Skipping.")
+                except (ValueError, TypeError) as e:
+                    print(f"Warning: Error parsing point set name key '{set_id_str}' or value: {e}. Skipping.")
+            print(f"Loaded {parsed_count} point set names.")
+        else:
+            print("No 'point_set_names' found in project file or format incorrect.")
+
         self._next_point_set_id = max_set_id + 1
 
         self.statusBar().showMessage(f"Project loaded from {filename}", 3000)
@@ -1000,6 +1077,7 @@ class MainWindow(QMainWindow):
         self.image_paths = []
         self.current_image_index = -1
         self.point_data = {}
+        self.point_set_names = {}
         self.active_point_set_index = -1
         self._next_point_set_id = 0
         self.thumbnails = {}
@@ -1012,7 +1090,7 @@ class MainWindow(QMainWindow):
         self.image_list_widget.clear()
         self.point_set_list_widget.clear()
         self._update_window_title()
-        self.current_image_index = -1  # Explicitly reset index
+        self.current_image_index = -1
 
     # --- Helper to load dimensions (used by calibration) ---
     def _load_dimensions_for_image(self, index: int) -> Optional[Tuple[int, int]]:
@@ -1764,7 +1842,7 @@ class MainWindow(QMainWindow):
 
     # --- Export Functions ---
     def _do_export(self, filename: str) -> Tuple[bool, str]:
-        """Performs the export logic using self.calibration_results."""
+        """Performs the export logic using self.calibration_results and point set names."""
         results_to_export = self.calibration_results
         generator_name = "Pointgram (PyCOLMAP)"
 
@@ -1828,12 +1906,13 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Exporting scene to {filename}...")
         QApplication.processEvents()
 
-        # Call the actual exporter function
+        # Call the exporter function
         success, message = export_scene_to_gltf(
             filename=filename,
             results=results_to_export,
             image_paths=self.image_paths,
             image_dimensions=self.image_dimensions,
+            point_set_names=self.point_set_names,
             generator_name=generator_name,
         )
 
