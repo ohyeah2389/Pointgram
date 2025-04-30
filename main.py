@@ -105,6 +105,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Pointgram")
+        self.setWindowIcon(QIcon(resource_path(os.path.join('icons', 'logo.ico'))))
         self.setGeometry(100, 100, 1400, 900)
 
         # Data storage
