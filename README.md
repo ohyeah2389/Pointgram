@@ -1,4 +1,6 @@
 # Pointgram
+![image](https://github.com/user-attachments/assets/ed69d35c-7b11-4687-ab25-f1e821603566)
+
 Pointgram is a tool that allows the user to perform manual feature extraction across multiple input images, store the features as a project file, and call COLMAP (through PyCOLMAP) to use those features to solve the input images' camera's intrinsic and extrinsic properties, as well as the locations of the points. This is a common technique in vehicle modeling and other artistic reverse engineering applications where photogrammetry through automatic feature extraction may not be possible, such as with a reference set of objects that are the same shape, but different colors, or with different backgrounds.
 
 A historical example of this functionality is the program Autodesk ImageModeler 2009, which is still commonly used, especially in the hobbyist or amatuer vehicle modeling scene. Some features of ImageModeler are out of scope for this project, such as the in-program modeling tools, but its feature set is a general target for this program's functionality.
