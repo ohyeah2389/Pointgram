@@ -7,7 +7,10 @@ A historical example of this functionality is the program Autodesk ImageModeler 
 
 Currently, the program is capable of all steps from image export to reconstructed scene export in GLTF format, but some key features are missing:
 
+- Camera distortion model support
+- Camera intrinsic locking, camera grouping
 - Point-to-point distance definition for rescaling
 - Three-point plane picking for coordinate system definition
+- Planar point cloud detection and degeneracy warning
 
 The program has been tested with Python 3.9 and PyCOLMAP 3.11.1. It uses PySide6 v6.9.0 for UI operations, along with the Tango icons included in the repository.
