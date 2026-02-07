@@ -1156,7 +1156,7 @@ class MainWindow(QMainWindow):
 
         db = None
         try:
-            db = pycolmap.Database(db_path)
+            db = pycolmap.Database.open(db_path)
             print(f"Database object created: {db}")
 
             # Determine Keypoint Order and Prepare Data Structure for COLMAP
@@ -1297,6 +1297,9 @@ class MainWindow(QMainWindow):
 
             traceback.print_exc()
             return False
+        finally:
+            if db is not None:
+                db.close()
 
     @Slot()
     def run_calibration(self):
@@ -1595,9 +1598,10 @@ class MainWindow(QMainWindow):
         # Map original app image index to COLMAP image_id
         original_idx_to_colmap_id = {}
         colmap_id_to_original_idx = {}  # Reverse mapping
+        db_read = None
         try:
             # Open DB read-only this time
-            db_read = pycolmap.Database(database_path_abs)
+            db_read = pycolmap.Database.open(database_path_abs)
             all_db_images = db_read.read_all_images()
             # Map image filename to COLMAP image_id
             name_to_id_map = {img.name: img.image_id for img in all_db_images}
@@ -1621,6 +1625,9 @@ class MainWindow(QMainWindow):
                 "Calibration finished with parsing errors.", 5000
             )
             return
+        finally:
+            if db_read is not None:
+                db_read.close()
 
         # Extract Intrinsics and Poses for registered images
         for img_idx, colmap_image_id in original_idx_to_colmap_id.items():
@@ -1654,9 +1661,8 @@ class MainWindow(QMainWindow):
 
                 # Extract Poses (Cam-to-World for export)
                 try:
-                    pose_w2c = (
-                        image.cam_from_world
-                    )  # pycolmap.Rigid3d object (World-to-Camera)
+                    # cam_from_world is a pybind-bound method, so call it to get Rigid3d
+                    pose_w2c = image.cam_from_world()  # World-to-Camera pose (Rigid3d)
                     R_w2c = pose_w2c.rotation.matrix()
                     t_w2c = pose_w2c.translation
 
@@ -1767,7 +1773,7 @@ class MainWindow(QMainWindow):
             if colmap_image_id in registered_image_ids_map:
                 image = registered_image_ids_map[colmap_image_id]  # COLMAP Image
                 camera = rec.cameras[image.camera_id]  # COLMAP Camera
-                pose_w2c = image.cam_from_world  # World-to-Camera Pose (Rigid3d)
+                pose_w2c = image.cam_from_world()  # World-to-Camera pose (Rigid3d)
 
                 # Iterate through the 2D observations associated with this image
                 for point2D in image.points2D:
