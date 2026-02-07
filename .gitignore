@@ -16,3 +16,4 @@ colmap_py_work/
 # Generated files
 *.gltf
 *.json
+test_colmap.db
