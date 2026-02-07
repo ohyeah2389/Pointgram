@@ -198,15 +198,17 @@ def export_scene_to_gltf(
             fx, fy = K_matrix[0, 0], K_matrix[1, 1]
             # Calculate yfov and aspectRatio from intrinsics and dimensions
             if abs(fy) < 1e-9:
-                yfov = np.pi / 2
+                yfov = float(np.pi / 2)
             else:
-                yfov = 2 * np.arctan((img_h / 2.0) / fy)
+                yfov = float(2 * np.arctan((img_h / 2.0) / fy))
             if abs(fx) < 1e-9 or abs(img_h * fx) < 1e-9:
-                aspect_ratio = img_w / img_h if img_h > 0 else 1.0
+                aspect_ratio = float(img_w / img_h if img_h > 0 else 1.0)
             else:
-                aspect_ratio = (img_w * fy) / (img_h * fx)
-            yfov = np.clip(yfov, 1e-6, np.pi - 1e-6)
-            aspect_ratio = max(1e-6, aspect_ratio)
+                aspect_ratio = float((img_w * fy) / (img_h * fx))
+            yfov = float(np.clip(yfov, 1e-6, np.pi - 1e-6))
+            aspect_ratio = float(max(1e-6, aspect_ratio))
+            znear_float = float(znear)
+            zfar_float = float(zfar)
 
             cam_def_name = f"CameraDef_{img_idx}"
             if 0 <= img_idx < len(image_paths):
@@ -219,8 +221,8 @@ def export_scene_to_gltf(
             camera.perspective = {
                 "aspectRatio": aspect_ratio,
                 "yfov": yfov,
-                "znear": znear,
-                "zfar": zfar,
+                "znear": znear_float,
+                "zfar": zfar_float,
             }
             gltf.cameras.append(camera)
 
@@ -277,9 +279,11 @@ def export_scene_to_gltf(
                     )
                     continue
 
-                node_matrix = T_cam_to_world_gltf.flatten(
-                    order="F"
-                ).tolist()  # glTF expects column-major
+                node_matrix = (
+                    T_cam_to_world_gltf.astype(np.float64)
+                    .flatten(order="F")
+                    .tolist()
+                )  # glTF expects column-major
 
                 cam_node_name = f"CameraNode_{img_idx}"
                 if 0 <= img_idx < len(image_paths):
