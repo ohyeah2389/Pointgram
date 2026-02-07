@@ -1500,12 +1500,24 @@ class MainWindow(QMainWindow):
             )
             print("pycolmap.incremental_mapping finished.")
         except Exception as e:
-            QMessageBox.critical(
-                self, "PyCOLMAP Error", f"Error during incremental mapping:\n{e}"
-            )
-            self.statusBar().showMessage(
-                "Calibration failed: PyCOLMAP mapping error.", 5000
-            )
+            error_text = str(e)
+            if (
+                "init_min_num_inliers" in error_text
+                or "options.Check()" in error_text
+                or "no initial pair" in error_text.lower()
+            ):
+                friendly_message = (
+                    "Calibration failed because PyCOLMAP could not find a valid initial "
+                    "image pair. Add more matching points between overlapping images "
+                    "so that each pair shares at least three correspondences, then try again."
+                )
+                status_message = "Calibration failed: Not enough matched points."
+            else:
+                friendly_message = f"Error during incremental mapping:\n{e}"
+                status_message = "Calibration failed: PyCOLMAP mapping error."
+
+            QMessageBox.critical(self, "PyCOLMAP Error", friendly_message)
+            self.statusBar().showMessage(status_message, 5000)
             import traceback
 
             traceback.print_exc()
