@@ -96,12 +96,16 @@ class CalibrationMixin:
                     keypoints = keypoints_per_image.get(img_idx, [])
                     num_keypoints = len(keypoints)
                     if num_keypoints > 0:
-                        keypoints_array = np.array(keypoints, dtype=np.float32)
-                        descriptors_array = np.zeros(
-                            (num_keypoints, 128), dtype=np.uint8
+                        db.write_keypoints(
+                            img_id, np.array(keypoints, dtype=np.float32)
                         )
-                        db.write_keypoints(img_id, keypoints_array)
-                        db.write_descriptors(img_id, descriptors_array)
+                        db.write_descriptors(
+                            img_id,
+                            pycolmap.FeatureDescriptors(
+                                type=pycolmap.FeatureExtractorType.SIFT,
+                                data=np.zeros((num_keypoints, 128), dtype=np.uint8),
+                            ),
+                        )
 
                 num_pairs_matched = 0
                 img_indices = list(range(len(self.image_paths)))
@@ -544,7 +548,7 @@ class CalibrationMixin:
                     observed_xy = point2D.xy
                     p3d_id = point2D.point3D_id
 
-                    if p3d_id != -1 and p3d_id in rec.points3D:
+                    if point2D.has_point3D and p3d_id in rec.points3D:
                         set_id = colmap_point3D_id_to_set_id.get(p3d_id)
 
                         if set_id is not None:

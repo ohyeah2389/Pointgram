@@ -13,4 +13,4 @@ Currently, the program is capable of all steps from image export to reconstructe
 - Three-point plane picking for coordinate system definition
 - Planar point cloud detection and degeneracy warning
 
-The program has been tested with Python 3.9 and PyCOLMAP 3.11.1. It uses PySide6 v6.9.0 for UI operations, along with the Tango icons included in the repository.
+The program has been tested with Python 3.14 and PyCOLMAP 4.1.1 (COLMAP 4.1.1). It uses PySide6 v6.11.1 for UI operations, along with the Tango icons included in the repository.
